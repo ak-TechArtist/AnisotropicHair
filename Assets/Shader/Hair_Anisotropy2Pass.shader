@@ -1,9 +1,4 @@
-﻿// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
-//Update 3.13 2nd Spe
-//Update 17.4.25:2Pass
-//Update 17.5.5 modify 2nd light SPECULAR
-//Update 17.12.7 修改为Vextex Shader
-Shader "Character/Hair/Hair_Anisotropy2Pass" 
+﻿Shader "Character/Hair/Hair_Anisotropy2Pass" 
 {
 	Properties 
 	{
@@ -29,12 +24,18 @@ Shader "Character/Hair/Hair_Anisotropy2Pass"
 	{
 		//在半透明之前渲染
 		Tags {"Queue"="Transparent-10" "IgnoreProjector"="True" "RenderType"="TransparentCutout"}
-		LOD 300
+
+		//Pass
+		//{
+		//	ZWrite On //写入深度，被遮挡的像素在下个Pass将不能通过深度测试
+		//	ColorMask 0 //不输出颜色
+		//}
+
+		//该Pass也写入被遮挡像素的颜色
 		Pass
 		{
 			ZWrite On
 			Cull [_Cull]
-			//ColorMask 0
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
@@ -87,13 +88,11 @@ Shader "Character/Hair/Hair_Anisotropy2Pass"
 				
 				//计算灯光衰减
 				UNITY_LIGHT_ATTENUATION(atten, i, i.worldPos);
-				half4 finalColor = half4(0, 0, 0, 0);
-				finalColor.rgb += (albedo.rgb * _MainColor.rgb) * (_LightColor0.rgb * NdotL * atten * 2);
-				finalColor.a += albedo.a;
+				half4 finalColor = half4(0, 0, 0, albedo.a);
+				finalColor.rgb += (albedo.rgb * _MainColor.rgb) * _LightColor0.rgb;
 				return finalColor;
 			};
 			ENDCG
-
 		}
 
 		Pass
@@ -106,7 +105,6 @@ Shader "Character/Hair/Hair_Anisotropy2Pass"
 			#pragma vertex vert
 			#pragma fragment frag
 			#include "Lighting.cginc"	
-			#include "AutoLight.cginc"	
 			#pragma target 3.0
 
 			sampler2D _MainTex, _AnisoDir,_NormalTex;
@@ -186,18 +184,19 @@ Shader "Character/Hair/Hair_Anisotropy2Pass"
 				fixed3 worldLightDir = normalize(UnityWorldSpaceLightDir(worldPos));
 
 				fixed3 spec = tex2D(_AnisoDir, i.uv).rgb;
-				half shiftTex = spec.g;//高光的偏移度
+				//计算切线方向的偏移度
+				half shiftTex = spec.g;
 				half3 t1 = ShiftTangent(worldBinormal, worldNormal, _PrimaryShift + shiftTex);
 				half3 t2 = ShiftTangent(worldBinormal, worldNormal, _SecondaryShift + shiftTex);
-				
+				//计算高光强度
 				half3 spec1 = StrandSpecular(t1, worldViewDir, worldLightDir, _SpecularMultiplier)* _SpecularColor;
 				half3 spec2 = StrandSpecular(t2, worldViewDir, worldLightDir, _SpecularMultiplier2)* _SpecularColor2;
 
 				fixed4 finalColor = 0;
-				finalColor.rgb = diffuseColor + spec1 * _Specular;
-				finalColor.rgb += spec2 * _SpecularColor2 * spec.b * _Specular;
-				
-				finalColor.a += albedo.a;
+				finalColor.rgb = diffuseColor + spec1 * _Specular;//第一层高光
+				finalColor.rgb += spec2 * _SpecularColor2 * spec.b * _Specular;//第二层高光，spec.b用于添加噪点
+				finalColor.rgb *= _LightColor0.rgb;//受灯光影响
+				finalColor.a = albedo.a;
 				
 				return finalColor;
 			};

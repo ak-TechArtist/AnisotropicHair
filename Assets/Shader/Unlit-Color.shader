@@ -9,9 +9,8 @@ Properties {
 }
 
 SubShader {
-	Tags {"Queue"="Transparent" "RenderType"="Opaque" }
+	Tags {"Queue"="Geometry" "RenderType"="Opaque" }
 	LOD 100
-	Blend SrcAlpha OneMinusSrcAlpha
 
 	Pass {  
 		CGPROGRAM
